@@ -497,7 +497,8 @@ class AuditReader
             $revisions[] = new Revision(
                 $row['id'],
                 \DateTime::createFromFormat($this->platform->getDateTimeFormatString(), $row['timestamp']),
-                $row['username']
+                $row['username'],
+                $revisionsData[0]['class']
             );
         }
         return $revisions;
@@ -591,6 +592,71 @@ class AuditReader
         return $changedEntities;
     }
 
+    public function findEntitiesChangedAtRevisionWithClass($revisionId)
+    {
+        $revision = $this->findRevision($revisionId);
+        $class = $this->em->getClassMetadata($revision->getClass());
+        $className = $class->getName();
+        $tableName = $this->config->getTablePrefix() . $class->table['name'] . $this->config->getTableSuffix();
+        $params = array();
+
+        $whereSQL   = "e." . $this->config->getRevisionFieldName() ." = ?";
+        $columnList = "e." . $this->config->getRevisionTypeFieldName();
+        $params[] = $revisionId;
+        $columnMap  = array();
+
+        foreach ($class->fieldNames as $columnName => $field) {
+            $type = Type::getType($class->fieldMappings[$field]['type']);
+            $tableAlias = $class->isInheritanceTypeJoined() && $class->isInheritedField($field) && ! $class->isIdentifier($field)
+                ? 're' // root entity
+                : 'e';
+            $columnList .= ', ' . $tableAlias.'.'.$type->convertToPHPValueSQL(
+                    $class->getQuotedColumnName($field, $this->platform), $this->platform) . ' AS ' . $this->platform->quoteSingleIdentifier($field);
+            $columnMap[$field] = $this->platform->getSQLResultCasing($columnName);
+        }
+
+        foreach ($class->associationMappings AS $assoc) {
+            if ( ($assoc['type'] & ClassMetadata::TO_ONE) > 0 && $assoc['isOwningSide']) {
+                foreach ($assoc['targetToSourceKeyColumns'] as $sourceCol) {
+                    $columnList .= ', ' . $sourceCol;
+                    $columnMap[$sourceCol] = $this->platform->getSQLResultCasing($sourceCol);
+                }
+            }
+        }
+
+        $joinSql = '';
+        if ($class->isInheritanceTypeSingleTable()) {
+            $columnList .= ', e.' . $class->discriminatorColumn['name'];
+            $whereSQL .= " AND e." . $class->discriminatorColumn['fieldName'] . " = ?";
+            $params[] = $class->discriminatorValue;
+        } elseif ($class->isInheritanceTypeJoined() && $class->rootEntityName != $class->name) {
+            $columnList .= ', re.' . $class->discriminatorColumn['name'];
+            $rootClass = $this->em->getClassMetadata($class->rootEntityName);
+            $rootTableName = $this->config->getTablePrefix() . $rootClass->table['name'] . $this->config->getTableSuffix();
+            $joinSql = "INNER JOIN {$rootTableName} re ON";
+            $joinSql .= " re.rev = e.rev";
+            foreach ($class->getIdentifierColumnNames() as $name) {
+                $joinSql .= " AND re.$name = e.$name";
+            }
+        }
+
+        $query = "SELECT " . $columnList . " FROM " . $tableName . " e " . $joinSql . " WHERE " . $whereSQL;
+        $revisionsData = $this->em->getConnection()->executeQuery($query, $params);
+
+        foreach ($revisionsData AS $row) {
+            $id   = array();
+            $data = array();
+
+            foreach ($class->identifier AS $idField) {
+                $id[$idField] = $row[$idField];
+            }
+
+            $entity = $this->createEntity($className, $row, $revisionId);
+            $changedEntities[] = new ChangedEntity($className, $id, $row[$this->config->getRevisionTypeFieldName()], $entity);
+        }
+        return $changedEntities;
+    }
+
     /**
      * Return the revision object for a particular revision.
      *
@@ -607,7 +673,8 @@ class AuditReader
             return new Revision(
                 $revisionsData[0]['id'],
                 \DateTime::createFromFormat($this->platform->getDateTimeFormatString(), $revisionsData[0]['timestamp']),
-                $revisionsData[0]['username']
+                $revisionsData[0]['username'],
+                $revisionsData[0]['class']
             );
         } else {
             throw new InvalidRevisionException($rev);
@@ -659,7 +726,8 @@ class AuditReader
             $revisions[] = new Revision(
                 $row['id'],
                 \DateTime::createFromFormat($this->platform->getDateTimeFormatString(), $row['timestamp']),
-                $row['username']
+                $row['username'],
+                $revisionsData[0]['class']
             );
         }
 
