@@ -4,7 +4,8 @@
     "keywords": ["Persistence", "Database", "Audit"],
     "description": "Audit for Doctrine Entities",
     "require": {
-        "doctrine/orm": "~2.1"
+        "doctrine/dbal": "~2.5",
+        "doctrine/orm": "~2.2"
     },
     "require-dev": {
         "symfony/framework-bundle": "~2.0"
