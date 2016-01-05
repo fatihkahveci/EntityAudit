@@ -59,6 +59,9 @@
             <call method="setRevisionIdFieldType">
                 <argument>%simplethings.entityaudit.revision_id_field_type%</argument>
             </call>
+            <call method="setRevisionClassName">
+                <argument>%simplethings.entityaudit.revision_class_name%</argument>
+            </call>
         </service>
     </services>
 </container>

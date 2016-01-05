@@ -34,6 +34,7 @@ class AuditConfiguration
     private $globalIgnoreColumns = array();
     private $currentUsername = '';
     private $revisionIdFieldType = 'integer';
+    private $revisionClassName = '';
 
     public function getTablePrefix()
     {
@@ -124,4 +125,15 @@ class AuditConfiguration
     {
         return $this->revisionIdFieldType;
     }
+
+    public function setRevisionClassName($revisionClassName)
+    {
+        $this->revisionClassName = $revisionClassName;
+    }
+
+    public function getRevisionClassName()
+    {
+        return $this->revisionClassName;
+    }
+
 }
